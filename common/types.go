@@ -276,6 +276,7 @@ func (a Address) Format(s fmt.State, c rune) {
 		if c == 'X' {
 			hex = bytes.ToUpper(hex)
 		}
+		s.Write(hex)
 	case 'd':
 		fmt.Fprint(s, ([len(a)]byte)(a))
 	default:
