@@ -1,3 +1,19 @@
+// Copyright 2022 The go-ethereum Authors
+// This file is part of the go-ethereum library.
+//
+// The go-ethereum library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-ethereum library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
+
 package main
 
 import (
@@ -11,7 +27,7 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
-const pathOfPackageRLP = "flychain/rlp"
+const pathOfPackageRLP = "rlp"
 
 func main() {
 	var (
@@ -55,7 +71,7 @@ type Config struct {
 
 // process generates the Go code.
 func (cfg *Config) process() (code []byte, err error) {
-	//Load packages
+	// Load packages.
 	pcfg := &packages.Config{
 		Mode:       packages.NeedName | packages.NeedTypes | packages.NeedImports | packages.NeedDeps,
 		Dir:        cfg.Dir,
@@ -70,7 +86,7 @@ func (cfg *Config) process() (code []byte, err error) {
 	}
 	packages.PrintErrors(ps)
 
-	// 找到加载的包。
+	// Find the packages that were loaded.
 	var (
 		pkg        *types.Package
 		packageRLP *types.Package
