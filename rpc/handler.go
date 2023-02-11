@@ -21,5 +21,9 @@ package rpc
 //		h.removeRequestOp(op) // timeout, etc.
 //	}
 type handler struct {
-	reg *serviceRe
+	reg           *serviceRegistry
+	unsubscribeCb *callback
+	idgen         func() ID // subscription ID generator
+	respWait map[string]*requestOp // 活跃的客户端请求
+	clientSubs map[string]*Cli // 活跃的客户端订阅
 }
