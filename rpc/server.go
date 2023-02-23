@@ -2,6 +2,8 @@ package rpc
 
 import (
 	"context"
+	"flychain/log"
+	"io"
 	"sync"
 	"sync/atomic"
 )
@@ -28,7 +30,7 @@ type Server struct {
 	idgen    func() ID
 
 	mutex sync.Mutex
-	codec map[ServerCodec]struct{}
+	codecs map[ServerCodec]struct{}
 	run   int32
 }
 
@@ -36,7 +38,7 @@ type Server struct {
 func NewServer() *Server {
 	server := &Server{
 		idgen: randomIDGenerator(),
-		codec: make(map[ServerCodec]struct{}),
+		codecs: make(map[ServerCodec]struct{}),
 		run:   1,
 	}
 	// 注册默认服务，提供有关 RPC 服务的元信息，例如
@@ -70,7 +72,7 @@ func (s *Server) trackCodec(codec ServerCodec) bool {
 	if atomic.LoadInt32(&s.run) == 0 {
 		return false // 如果服务器停止，则不提供服务。
 	}
-	s.codec[codec] = struct{}{}
+	s.codecs[codec] = struct{}{}
 	return true
 }
 
@@ -78,7 +80,7 @@ func (s *Server) untrackCodec(codec ServerCodec) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	delete(s.codec, codec)
+	delete(s.codecs, codec)
 }
 
 // serveSingleRequest 从给定的编解码器读取并处理单个 RPC 请求。这
@@ -90,11 +92,54 @@ func (s *Server) serveSingleRequest(ctx context.Context, codec ServerCodec) {
 		return
 	}
 
-	h := newHan
+	h := NewHandler(ctx, codec, s.idgen, &s.services)
+	h.allowSubscribe = false
+	defer h.close(io.EOF, nil)
+
+	reqs, batch, err := codec.readBatch()
+	if err != nil {
+		if err != io.EOF {
+			resp := errorMessage(&invalidMessageError{"parse error"})
+			codec.writeJSON(ctx, resp, true)
+		}
+		return
+	}
+	if batch {
+		h.handleBatch(reqs)
+	} else {
+		h.handleMsg(reqs[0])
+	}
+}
+
+// Stop 停止读取新的请求，等待 stopPendingRequestTimeout 允许挂起
+// 请求完成，然后关闭所有将取消挂起请求的编解码器和
+// 订阅。
+func (s *Server) Stop() {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	if atomic.CompareAndSwapInt32(&s.run, 1, 0) {
+		log.Debug("RPC server shutting down")
+		for codec := range s.codecs {
+			codec.close()
+		}
+	}
 }
 
 // RPCService 提供有关服务器的元信息。
 // 例如提供有关已加载模块的信息。
 type RPCService struct {
 	server *Server
+}
+
+// 模块返回 RPC 服务列表及其版本号
+func (s *RPCService) Modules() map[string]string {
+	s.server.services.mu.Lock()
+	defer s.server.services.mu.Unlock()
+
+	modules := make(map[string]string)
+	for name := range s.server.services.services {
+		modules[name] = "1.0"
+	}
+	return modules
 }
